@@ -1190,12 +1190,12 @@ function LoginPanel(){
   const { login, users } = useAuth();
   const [form, setForm] = useState({ idOrEmail: "", password: "" });
   const [err, setErr] = useState("");
-  const handleLogin = (e)=>{ 
-    e.preventDefault(); 
-    setErr(""); 
-    try{ 
-      login(form.idOrEmail.trim(), form.password.trim()); 
-    }catch(ex){ 
+  const handleLogin = async (e)=>{ 
+    e.preventDefault();
+    setErr("");
+    try{
+      await login(form.idOrEmail.trim(), form.password.trim());
+    }catch(ex){
       setErr(ex.message);
     } 
   };

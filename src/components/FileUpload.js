@@ -1,7 +1,7 @@
 // src/components/FileUpload.js
 
 import React, { useState, useRef } from 'react';
-import { uploadImage, uploadAudio, formatFileSize } from '../uploadHelpers';
+import { uploadImage, uploadAudio } from '../uploadHelpers';
 
 export function FileUpload({ type = 'image', onUpload, currentUrl, label }) {
   const [uploading, setUploading] = useState(false);
