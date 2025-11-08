@@ -23,7 +23,7 @@ export async function uploadImage(file) {
     const filePath = `${fileName}`;
 
     // Subir a Supabase
-    const { data, error } = await supabase.storage
+    const { error } = await supabase.storage
       .from('movie-images')
       .upload(filePath, file, {
         cacheControl: '3600',
@@ -72,7 +72,7 @@ export async function uploadAudio(file) {
     const filePath = `${fileName}`;
 
     // Subir a Supabase
-    const { data, error } = await supabase.storage
+    const { error } = await supabase.storage
       .from('movie-audio')
       .upload(filePath, file, {
         cacheControl: '3600',
@@ -125,4 +125,5 @@ export function formatFileSize(bytes) {
   const sizes = ['Bytes', 'KB', 'MB', 'GB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+
 }
