@@ -569,7 +569,7 @@ function AboutModal({ onClose }) {
             <ul className="space-y-2 text-sm sm:text-base text-[#a9b4c6]">
               <li className="flex items-start gap-2"><span className="text-blue-400 mt-1">▸</span><span>Documentar películas icónicas de ciencia ficción y tecnología</span></li>
               <li className="flex items-start gap-2"><span className="text-blue-400 mt-1">▸</span><span>Proporcionar análisis detallados de cada película</span></li>
-              <li className="flex items-start gap-2"><span className="text-blue-400 mt-1">▸</span><span>Crear una plataforma interactiva para amantes del cine</span></li>
+              <li className="flex items-start gap-2"><span className="text-blue-400 mt-1">▸</span><span>Crear una plataforma interactiva para el público en general</span></li>
               <li className="flex items-start gap-2"><span className="text-blue-400 mt-1">▸</span><span>Facilitar el descubrimiento de nuevas películas del género</span></li>
             </ul>
           </section>
