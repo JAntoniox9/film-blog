@@ -1,11 +1,14 @@
 // App MEJORADA Y TOTALMENTE RESPONSIVE con funcionalidad de EDICIÓN
 // Optimizada para móviles, tablets y desktop
 // ✅ MODIFICADO PARA LOGIN OCULTO CON "admin 51" EN EL BUSCADOR
+// ✅ INTEGRADO: Header, Footer, Modals de Autores y Acerca de
 
 import { v4 as uuidv4 } from 'uuid';
 import React, { useMemo, useState, useEffect, createContext, useContext, useRef } from "react";
 import { useUsers as useSupabaseUsers, useAuth as useSupabaseAuth, usePosts as useSupabasePosts } from './hooks/useSupabase';
 import { FileUpload } from './components/FileUpload';
+import ClapperModelViewer from './ClapperModel';
+import { FaXTwitter, FaFacebook, FaInstagram } from "react-icons/fa6";
 
 
 /*************************** Utilidades ***************************/
@@ -77,14 +80,14 @@ function AuthProvider({children}){
 /*************************** Componentes UI RESPONSIVE ***************************/
 function Page({children}){
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#0a0e1a] via-[#0f1419] to-[#1a0f1f] text-[#e6edf6] relative overflow-x-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-[#0a0e1a] via-[#0f1419] to-[#1a0f1f] text-[#e6edf6] relative overflow-x-hidden flex flex-col">
       <div className="fixed inset-0 opacity-10 sm:opacity-20 md:opacity-30 pointer-events-none">
         <div className="absolute top-5 sm:top-10 md:top-20 left-2 sm:left-5 md:left-10 w-32 sm:w-40 md:w-72 h-32 sm:h-40 md:h-72 bg-blue-600/20 rounded-full blur-3xl animate-pulse"></div>
         <div className="absolute bottom-5 sm:bottom-10 md:bottom-20 right-2 sm:right-5 md:right-10 w-48 sm:w-56 md:w-96 h-48 sm:h-56 md:h-96 bg-purple-600/20 rounded-full blur-3xl animate-pulse" style={{animationDelay: '1s'}}></div>
         <div className="absolute top-1/2 left-1/2 w-32 sm:w-40 md:w-64 h-32 sm:h-40 md:h-64 bg-cyan-600/10 rounded-full blur-3xl animate-pulse" style={{animationDelay: '2s'}}></div>
       </div>
       
-      <div className="max-w-7xl mx-auto px-2 xs:px-3 sm:px-4 md:px-6 py-3 xs:py-4 md:py-6 relative z-10">
+      <div className="flex-1 w-full relative z-10">
         {children}
       </div>
     </div>
@@ -112,7 +115,8 @@ function Badge({children, variant = "default"}){
   );
 }
 
-function Button({children, onClick, type="button", variant="primary", disabled, icon}){
+// Este es el botón PRINCIPAL de la app (Formularios, etc)
+function Button({children, onClick, type="button", variant="primary", disabled, icon, className=""}){
   const base = "px-3 sm:px-4 md:px-5 py-2 md:py-2.5 rounded-xl md:rounded-2xl text-xs sm:text-sm font-semibold transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed transform active:scale-95 flex items-center gap-1 sm:gap-2 justify-center shadow-lg hover:scale-105";
   const styles = {
     primary: "bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 shadow-blue-900/50 hover:shadow-blue-800/60 hover:shadow-xl",
@@ -121,9 +125,25 @@ function Button({children, onClick, type="button", variant="primary", disabled, 
     subtle: "bg-gradient-to-r from-[#1c2735] to-[#223149] hover:from-[#223149] hover:to-[#2a3a50] shadow-md",
   };
   return (
-    <button type={type} disabled={disabled} onClick={onClick} className={`${base} ${styles[variant]}`}>
+    <button type={type} disabled={disabled} onClick={onClick} className={`${base} ${styles[variant]} ${className}`}>
       {icon && <span className="text-base sm:text-lg">{icon}</span>}
       <span className="whitespace-nowrap">{children}</span>
+    </button>
+  );
+}
+
+// ✅ NUEVO: Botón específico para el Header (Renombrado para evitar conflicto)
+function NavButton({ variant = "solid", icon, className = "", children, onClick }) {
+  const base =
+    "inline-flex items-center gap-2 px-3 py-2 rounded-lg border transition focus:outline-none focus:ring-2 focus:ring-blue-500";
+  const styles =
+    variant === "ghost"
+      ? "bg-transparent border-transparent hover:bg-white/5"
+      : "bg-gradient-to-r from-blue-600 to-purple-600 border-blue-500/40 hover:opacity-90";
+  return (
+    <button onClick={onClick} className={`${base} ${styles} ${className}`}>
+      {icon ? <span className="text-lg leading-none">{icon}</span> : null}
+      <span>{children}</span>
     </button>
   );
 }
@@ -190,6 +210,7 @@ function DetailRow({ label, value }) {
   );
 }
 
+// ✅ MODAL ORIGINAL (Mantenemos este porque es más completo: scroll, tecla ESC, estilos base consistentes)
 function Modal({ children, onClose, maxWidth = "max-w-6xl" }) {
   const [isVisible, setIsVisible] = useState(false);
 
@@ -202,20 +223,20 @@ function Modal({ children, onClose, maxWidth = "max-w-6xl" }) {
 
   return (
     <div 
-      className={`fixed inset-0 z-50 flex items-start sm:items-center justify-center bg-black/90 backdrop-blur-md transition-opacity duration-300 p-2 sm:p-4 overflow-y-auto ${isVisible ? 'opacity-100' : 'opacity-0'}`}
+      className={`fixed inset-0 z-[100] flex items-start sm:items-center justify-center bg-black/90 backdrop-blur-md transition-opacity duration-300 p-2 sm:p-4 overflow-y-auto ${isVisible ? 'opacity-100' : 'opacity-0'}`}
       onClick={onClose}
     >
       {/* Botón X flotante SIEMPRE VISIBLE en la esquina superior derecha */}
       <button 
         onClick={onClose} 
         title="Cerrar (Esc)" 
-        className="fixed top-4 right-4 z-[60] w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center rounded-full bg-gradient-to-br from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white text-xl sm:text-2xl font-light shadow-2xl hover:shadow-red-900/50 transition-all duration-300 transform hover:scale-110 active:scale-95 border-2 border-white/20"
+        className="fixed top-4 right-4 z-[110] w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center rounded-full bg-gradient-to-br from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white text-xl sm:text-2xl font-light shadow-2xl hover:shadow-red-900/50 transition-all duration-300 transform hover:scale-110 active:scale-95 border-2 border-white/20"
       >
         ✕
       </button>
 
       <div 
-        className={`relative ${maxWidth} w-full my-4 sm:my-0 max-h-[calc(100vh-2rem)] sm:max-h-[92vh] bg-gradient-to-br from-[#111821] to-[#1a1f2e] rounded-xl sm:rounded-2xl shadow-2xl border border-[#1c2735]/50 transform transition-all duration-500 overflow-hidden ${isVisible ? 'scale-100 opacity-100' : 'scale-95 opacity-0'}`}
+        className={`relative ${maxWidth} w-full my-4 sm:my-0 max-h-[calc(100vh-2rem)] sm:max-h-[92vh] bg-[#0b0f14] rounded-xl sm:rounded-2xl shadow-2xl border border-white/10 transform transition-all duration-500 overflow-hidden ${isVisible ? 'scale-100 opacity-100' : 'scale-95 opacity-0'}`}
         onClick={e => e.stopPropagation()}
       >
         <div className="overflow-y-auto max-h-[calc(100vh-2rem)] sm:max-h-[92vh] custom-scrollbar">
@@ -226,9 +247,413 @@ function Modal({ children, onClose, maxWidth = "max-w-6xl" }) {
   );
 }
 
+/*************************** NUEVOS COMPONENTES SOLICITADOS ***************************/
+
+/*************************** Header Component ***************************/
+function Header({ onOpenAuthors, onOpenAbout, currentUser, logout }) {
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+
+  return (
+    <header className="sticky top-0 z-50 bg-gradient-to-r from-[#0a0e1a]/95 via-[#0f1419]/95 to-[#1a0f1f]/95 backdrop-blur-xl border-b border-[#1c2735]/50 shadow-xl">
+      <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 py-3 sm:py-4">
+        <div className="flex items-center justify-between">
+          {/* Logo y título */}
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="text-2xl sm:text-3xl">🎬</div>
+            <div>
+              <h1 className="text-sm sm:text-base md:text-lg font-bold bg-gradient-to-r from-blue-400 via-purple-400 to-cyan-400 bg-clip-text text-transparent">
+                25 GRANDES PELÍCULAS
+              </h1>
+              <p className="text-[8px] sm:text-[10px] text-[#8fa1bb]">Ciencia Ficción & Tecnología</p>
+            </div>
+          </div>
+
+          {/* Navegación desktop */}
+          <nav className="hidden md:flex items-center gap-3 lg:gap-4">
+            <button
+              onClick={onOpenAuthors}
+              className="px-3 lg:px-4 py-2 text-sm lg:text-base text-[#e6edf6] hover:text-blue-400 transition-colors flex items-center gap-2"
+            >
+              <span>👥</span>
+              <span>Autores</span>
+            </button>
+            <button
+              onClick={onOpenAbout}
+              className="px-3 lg:px-4 py-2 text-sm lg:text-base text-[#e6edf6] hover:text-purple-400 transition-colors flex items-center gap-2"
+            >
+              <span>ℹ️</span>
+              <span>Acerca de</span>
+            </button>
+            {currentUser && (
+              <>
+                <div className="h-6 w-px bg-[#243247]"></div>
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-[#0f1520] to-[#1a1f2e] rounded-xl border border-[#243247]">
+                  <span className="text-xs text-[#8fa1bb]">Sesión:</span>
+                  <strong className="text-sm text-white truncate max-w-[120px]">{currentUser.name}</strong>
+                </div>
+                <NavButton variant="ghost" onClick={logout} icon="👋" className="text-sm">Salir</NavButton>
+              </>
+            )}
+          </nav>
+
+          {/* Menú móvil */}
+          <div className="md:hidden flex items-center gap-2">
+            {currentUser && (
+              <NavButton variant="ghost" onClick={logout} icon="👋" className="text-xs px-2 py-1">
+                <span className="hidden xs:inline">Salir</span>
+              </NavButton>
+            )}
+            <button
+              onClick={() => setIsMenuOpen(!isMenuOpen)}
+              className="p-2 text-[#e6edf6] hover:text-blue-400 transition-colors"
+            >
+              <span className="text-xl">{isMenuOpen ? "✕" : "☰"}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Menú móvil desplegable */}
+        {isMenuOpen && (
+          <div className="md:hidden mt-3 pt-3 border-t border-[#1c2735]/50 space-y-2 animate-fade-in">
+            <button
+              onClick={() => { onOpenAuthors(); setIsMenuOpen(false); }}
+              className="w-full px-3 py-2 text-sm text-left text-[#e6edf6] hover:bg-[#1c2735]/30 rounded-lg transition-colors flex items-center gap-2"
+            >
+              <span>👥</span>
+              <span>Autores</span>
+            </button>
+            <button
+              onClick={() => { onOpenAbout(); setIsMenuOpen(false); }}
+              className="w-full px-3 py-2 text-sm text-left text-[#e6edf6] hover:bg-[#1c2735]/30 rounded-lg transition-colors flex items-center gap-2"
+            >
+              <span>ℹ️</span>
+              <span>Acerca de</span>
+            </button>
+            {currentUser && (
+              <div className="px-3 py-2 bg-[#0f1520]/50 rounded-lg text-xs">
+                <span className="text-[#8fa1bb]">Sesión: </span>
+                <strong className="text-white">{currentUser.name}</strong>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </header>
+  );
+}
+
+/*************************** Footer Component ***************************/
+function Footer({ onOpenAuthors, onOpenAbout }) {
+  const currentYear = new Date().getFullYear();
+
+  return (
+    <footer className="relative mt-12 sm:mt-16 bg-gradient-to-r from-[#0a0e1a]/95 via-[#0f1419]/95 to-[#1a0f1f]/95 backdrop-blur-xl border-t border-[#1c2735]/50">
+      <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 py-6 sm:py-8 md:py-10">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-8 mb-6 sm:mb-8">
+          {/* Sección 1: Sobre el proyecto */}
+          <div>
+            <div className="flex items-center gap-2 mb-3 sm:mb-4">
+              <span className="text-2xl sm:text-3xl">🎬</span>
+              <h3 className="text-base sm:text-lg font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+                25 Grandes Películas
+              </h3>
+            </div>
+            <p className="text-xs sm:text-sm text-[#8fa1bb] leading-relaxed">
+              Una colección  de las películas más influyentes de ciencia ficción y tecnología en la historia del cine.
+            </p>
+          </div>
+
+          {/* Sección 2: Enlaces rápidos */}
+          <div>
+            <h4 className="text-sm sm:text-base font-bold text-[#e6edf6] mb-3 sm:mb-4 flex items-center gap-2">
+              <span>🔗</span>
+              Enlaces Rápidos
+            </h4>
+            <ul className="space-y-2">
+              <li>
+                <button onClick={onOpenAuthors} className="text-xs sm:text-sm text-[#a9b4c6] hover:text-blue-400 transition-colors flex items-center gap-2">
+                  <span>👥</span>
+                  Ver Autores
+                </button>
+              </li>
+              <li>
+                <button onClick={onOpenAbout} className="text-xs sm:text-sm text-[#a9b4c6] hover:text-purple-400 transition-colors flex items-center gap-2">
+                  <span>ℹ️</span>
+                  Acerca del Proyecto
+                </button>
+              </li>
+            </ul>
+          </div>
+
+          {/* Sección 3: Categorías */}
+          <div>
+            <h4 className="text-sm sm:text-base font-bold text-[#e6edf6] mb-3 sm:mb-4 flex items-center gap-2">
+              <span>🎭</span>
+              Categorías
+            </h4>
+            <ul className="space-y-2">
+              {CATEGORIES.map((cat) => (
+                <li key={cat}>
+                  <span className="text-xs sm:text-sm text-[#a9b4c6] flex items-center gap-2">
+                    <span className="text-cyan-400">▸</span>
+                    {cat}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Sección 4: Contacto/Info */}
+          <div>
+            <h4 className="text-sm sm:text-base font-bold text-[#e6edf6] mb-3 sm:mb-4 flex items-center gap-2">
+              <span>📧</span>
+              Información
+            </h4>
+            <p className="text-xs sm:text-sm text-[#8fa1bb] mb-3">Proyecto educativo para Taller de Ingeniería del Software.</p>
+            <div className="flex gap-2 sm:gap-3">
+              {[
+                // TODOS LOS ENLACES ACTUALIZADOS
+                { k: "tw", hint: "Twitter", url: "https://x.com/TopMoviesCyT" },
+                { k: "fb", hint: "Facebook", url: "https://www.facebook.com/Topmoviescyt" },
+                { k: "ig", hint: "Instagram", url: "https://www.instagram.com/topmoviescyt/" },
+              
+              ].map((s) => (
+                <a
+                  key={s.k}
+                  href={s.url} // Usamos la URL correcta
+                  title={s.hint}
+                  // Abrir en pestaña nueva de forma segura
+                  target="_blank"
+                  rel="noopener noreferrer" 
+                  className="w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center rounded-full bg-[#1c2735] hover:bg-white/10 border border-[#243247] hover:border-blue-500/50 transition-all transform hover:scale-110"
+                >
+                  {s.k === "tw" ? <FaXTwitter className="text-sm sm:text-base" /> : s.k === "fb" ? <FaFacebook className="text-sm sm:text-base" /> : <FaInstagram className="text-sm sm:text-base" />}
+                </a>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Copyright */}
+        <div className="pt-4 sm:pt-6 border-t border-[#1c2735]/50 text-center">
+          <p className="text-[10px] sm:text-xs text-[#6b7a90]">
+            © {currentYear} topmoviescyt.blog - 25 Grandes Películas - Proyecto Educativo - Todos los derechos reservados.
+          </p>
+          <p className="text-[9px] sm:text-[10px] text-[#6b7a90] mt-1">Hecho con 💙</p>
+        </div>
+      </div>
+    </footer>
+  );
+}
+
+/*************************** Modal Autores ***************************/
+function AuthorsModal({ onClose, users, posts }) {
+  // Calculamos las estadísticas reales basadas en los datos de Supabase
+  const authorStats = users
+    .map((user) => {
+      const userPosts = posts.filter((post) => post.author_id === user.id);
+      return { ...user, postCount: userPosts.length, posts: userPosts };
+    })
+    .sort((a, b) => b.postCount - a.postCount);
+
+  return (
+    <Modal onClose={onClose} maxWidth="max-w-6xl">
+      <div className="p-4 sm:p-6 md:p-8">
+        <div className="flex items-center gap-3 mb-6">
+          <span className="text-3xl sm:text-4xl">👥</span>
+          <div>
+            <h2 className="text-2xl sm:text-3xl font-bold text-white">Autores del Proyecto</h2>
+            <p className="text-sm text-[#a9b4c6] mt-1">Colaboradores y sus publicaciones</p>
+          </div>
+        </div>
+
+        <div className="space-y-6">
+          {authorStats.map((author) => (
+            <div key={author.id} className="bg-gradient-to-br from-[#0f1520] to-[#1a1f2e] rounded-xl p-4 sm:p-6 border border-[#243247] hover:border-blue-500/50 transition-all duration-300">
+              {/* Header del autor */}
+              <div className="flex items-center justify-between mb-4 pb-4 border-b border-[#1c2735]">
+                <div className="flex items-center gap-3">
+                  <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-gradient-to-br from-blue-600/40 to-purple-600/40 flex items-center justify-center text-2xl sm:text-3xl border-2 border-blue-500/30">👤</div>
+                  <div>
+                    <h3 className="text-lg sm:text-xl font-bold text-white">{author.name}</h3>
+                    <div className="flex items-center gap-3 mt-1">
+                      <span className="w-1 h-1 bg-[#8fa1bb] rounded-full"></span>
+                      <p className="text-xs text-blue-400 font-semibold">{author.postCount} {author.postCount === 1 ? "publicación" : "publicaciones"}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Lista de publicaciones */}
+              {author.postCount > 0 ? (
+                <div className="space-y-3">
+                  <h4 className="text-sm font-semibold text-[#a9b4c6] flex items-center gap-2">
+                    <span>📽️</span>
+                    Películas publicadas:
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {author.posts.map((post) => (
+                      <div key={post.id} className="bg-[#0a0e1a]/50 rounded-lg p-3 border border-[#1c2735] hover:border-blue-500/30 transition-all group">
+                        <div className="flex items-start gap-2">
+                          <span className="text-lg flex-shrink-0 group-hover:scale-110 transition-transform">🎬</span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-white truncate group-hover:text-blue-400 transition-colors">
+                              {post.spanish_title || post.original_title}
+                            </p>
+                            <div className="flex items-center gap-2 mt-1 text-[10px] text-[#8fa1bb]">
+                              {post.year && <span>📅 {post.year}</span>}
+                              {post.category && (
+                                <>
+                                  <span>•</span>
+                                  <span>🎭 {post.category}</span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-6 text-[#6b7a90]">
+                  <p className="text-sm">Sin publicaciones aún</p>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {authorStats.length === 0 && (
+          <div className="text-center py-12 text-[#8fa1bb]">
+            <div className="text-5xl mb-3 opacity-50">👥</div>
+            <p>No hay autores registrados</p>
+          </div>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+/*************************** Modal Acerca de ***************************/
+function AboutModal({ onClose }) {
+  return (
+    <Modal onClose={onClose} maxWidth="max-w-4xl">
+      <div className="p-4 sm:p-6 md:p-8">
+        <div className="flex items-center gap-3 mb-6">
+          <span className="text-3xl sm:text-4xl">ℹ️</span>
+          <div>
+            <h2 className="text-2xl sm:text-3xl font-bold text-white">Acerca del Proyecto</h2>
+            <p className="text-sm text-[#a9b4c6] mt-1">Información sobre esta colección</p>
+          </div>
+        </div>
+
+        <div className="space-y-6">
+          {/* Descripción */}
+          <section className="bg-gradient-to-br from-[#0f1520] to-[#1a1f2e] rounded-xl p-4 sm:p-6 border border-[#243247]">
+            <h3 className="text-lg sm:text-xl font-bold mb-3 flex items-center gap-2 text-white">
+              <span>🎬</span>
+              Descripción del Proyecto
+            </h3>
+            <p className="text-sm sm:text-base text-[#a9b4c6] leading-relaxed">
+              <strong className="text-white">25 Grandes Películas</strong> es una colección  de las películas más influyentes de ciencia ficción y tecnología en la historia del cine. Este proyecto tiene como objetivo documentar, analizar y compartir las obras cinematográficas que han definido géneros y han explorado las posibilidades del futuro, la tecnología y la condición humana.
+            </p>
+          </section>
+
+          {/* Objetivo */}
+          <section className="bg-gradient-to-br from-[#0f1520] to-[#1a1f2e] rounded-xl p-4 sm:p-6 border border-[#243247]">
+            <h3 className="text-lg sm:text-xl font-bold mb-3 flex items-center gap-2 text-white">
+              <span>🎯</span>
+              Objetivos
+            </h3>
+            <ul className="space-y-2 text-sm sm:text-base text-[#a9b4c6]">
+              <li className="flex items-start gap-2"><span className="text-blue-400 mt-1">▸</span><span>Documentar películas icónicas de ciencia ficción y tecnología</span></li>
+              <li className="flex items-start gap-2"><span className="text-blue-400 mt-1">▸</span><span>Proporcionar análisis detallados de cada película</span></li>
+              <li className="flex items-start gap-2"><span className="text-blue-400 mt-1">▸</span><span>Crear una plataforma interactiva para el público en general</span></li>
+              <li className="flex items-start gap-2"><span className="text-blue-400 mt-1">▸</span><span>Facilitar el descubrimiento de nuevas películas del género</span></li>
+            </ul>
+          </section>
+
+          {/* Características */}
+          <section className="bg-gradient-to-br from-[#0f1520] to-[#1a1f2e] rounded-xl p-4 sm:p-6 border border-[#243247]">
+            <h3 className="text-lg sm:text-xl font-bold mb-3 flex items-center gap-2 text-white">
+              <span>✨</span>
+              Características
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {[
+                "Galería de imágenes",
+                "Audio narrado",
+                "Trailers integrados",
+                "Información detallada",
+                "Sistema de búsqueda",
+                "Compartir en redes",
+              ].map((txt) => (
+                <div key={txt} className="flex items-center gap-2 text-sm text-[#a9b4c6]">
+                  <span className="text-green-400">✓</span>
+                  <span>{txt}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* Tecnologías */}
+          <section className="bg-gradient-to-br from-[#0f1520] to-[#1a1f2e] rounded-xl p-4 sm:p-6 border border-[#243247]">
+            <h3 className="text-lg sm:text-xl font-bold mb-3 flex items-center gap-2 text-white">
+              <span>⚙️</span>
+              Tecnologías Utilizadas
+            </h3>
+            <div className="flex flex-wrap gap-2">
+              {["React", "Supabase", "TailwindCSS", "JavaScript"].map((tech) => (
+                <span key={tech} className="px-3 py-1.5 bg-[#1c2735] border border-[#243247] rounded-lg text-xs sm:text-sm text-[#e6edf6] hover:border-blue-500/50 transition-colors">
+                  {tech}
+                </span>
+              ))}
+            </div>
+          </section>
+          <section className="bg-gradient-to-br from-[#0f1520] to-[#1a1f2e] rounded-xl p-4 sm:p-6 border border-[#243247]">
+                      <h3 className="text-lg sm:text-xl font-bold mb-3 flex items-center gap-2 text-white">
+                        <span>✨</span>
+                        Créditos de Assets
+                      </h3>
+                      <p className="text-sm sm:text-base text-[#a9b4c6] leading-relaxed">
+                        El modelo 3D de la pantalla de bienvenida es:
+                        <br />
+                        <a 
+                          href="https://skfb.ly/oFXKN" 
+                          target="_blank" 
+                          rel="noopener noreferrer" 
+                          className="text-blue-400 hover:underline"
+                        >
+                          "Black film slate or clapper"
+                        </a> de 
+                        <a 
+                          href="https://sketchfab.com/bendar" 
+                          target="_blank" 
+                          rel="noopener noreferrer" 
+                          className="text-blue-400 hover:underline"
+                        >
+                          Bendar Multimedia
+                        </a>
+                        <br />
+                        Licenciado bajo <a 
+                          href="http://creativecommons.org/licenses/by/4.0/" 
+                          target="_blank" 
+                          rel="noopener noreferrer" 
+                          className="text-blue-400 hover:underline"
+                        >
+                          Creative Commons Attribution (CC BY 4.0)
+                        </a>.
+                      </p>
+                    </section>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 /*************************** Tarjeta con botón de editar ***************************/
 function PostSummaryCard({post, onClick, onEdit, showActions, currentUserId}){
-  console.log('📦 Post recibido:', post);  // ✅ AGREGAR ESTO
   const [isHovered, setIsHovered] = useState(false);
   const mainImage = (post.images || []).find(img => img && String(img).trim() !== "");
   const canEdit = showActions && currentUserId && (post.author_id === currentUserId || post._seed);
@@ -357,7 +782,7 @@ function EditPostModal({ post, onClose, onSave }) {
         <div className="flex items-center gap-2 sm:gap-3 mb-4 sm:mb-6 pr-8 sm:pr-12">
           <div className="text-2xl sm:text-3xl">✏️</div>
           <div>
-            <h3 className="text-xl sm:text-2xl font-bold">Editar película</h3>
+            <h3 className="text-xl sm:text-2xl font-bold text-white">Editar película</h3>
             <p className="text-[#a9b4c6] text-xs sm:text-sm mt-1">
               Modificando: <span className="font-semibold text-white">{post.spanish_title}</span>
             </p>
@@ -543,7 +968,7 @@ function ShareButtons({ post, settings }) {
         className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-gradient-to-r from-blue-500/20 to-blue-600/20 hover:from-blue-500/30 hover:to-blue-600/30 border border-blue-500/50 rounded-lg transition-all duration-300 transform hover:scale-105 active:scale-95"
         title="Compartir en X (Twitter)"
       >
-        <span className="text-base sm:text-lg">𝕏</span>
+        <FaXTwitter className="text-base sm:text-lg" />
         <span className="text-xs sm:text-sm font-semibold">X</span>
       </button>
       
@@ -552,7 +977,7 @@ function ShareButtons({ post, settings }) {
         className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-gradient-to-r from-blue-600/20 to-blue-700/20 hover:from-blue-600/30 hover:to-blue-700/30 border border-blue-600/50 rounded-lg transition-all duration-300 transform hover:scale-105 active:scale-95"
         title="Compartir en Facebook"
       >
-        <span className="text-base sm:text-lg">📘</span>
+        <FaFacebook className="text-base sm:text-lg" />
         <span className="text-xs sm:text-sm font-semibold">Facebook</span>
       </button>
       
@@ -561,7 +986,7 @@ function ShareButtons({ post, settings }) {
         className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-gradient-to-r from-purple-500/20 to-pink-500/20 hover:from-purple-500/30 hover:to-pink-500/30 border border-purple-500/50 rounded-lg transition-all duration-300 transform hover:scale-105 active:scale-95"
         title="Copiar para Instagram"
       >
-        <span className="text-base sm:text-lg">📷</span>
+        <FaInstagram className="text-base sm:text-lg" />
         <span className="text-xs sm:text-sm font-semibold">Instagram</span>
       </button>
     </div>
@@ -1463,8 +1888,6 @@ function PostForm({onSubmit, currentUser}){
 }
 
 
-// ...existing code...
-
 /*************************** Carrusel Mejorado ***************************/
 function DailyCarousel({posts, onPostClick, currentUserId, onEdit}){
   const [idx, setIdx] = useState(0);
@@ -1690,7 +2113,6 @@ function DailyCarousel({posts, onPostClick, currentUserId, onEdit}){
   );
 }
 
-// ...existing code...
 
 /*************************** Lista ***************************/
 // ✅ 1. Recibe la nueva prop onUnlockLogin
@@ -1795,8 +2217,6 @@ function PostList({posts, users, onPostClick, currentUserId, onEdit, onUnlockLog
   );
 }
 
-// ...existing code...
-
 /*************************** App principal ***************************/
 export default function App(){
   return (
@@ -1808,21 +2228,23 @@ export default function App(){
 
 function MainApp(){
   const {users, currentUser, logout} = useAuth();
-  
-  // ✅ Usar hooks de Supabase
-  
-const { posts, createPost, updatePost, deletePost } = useSupabasePosts();
 
+  // ✅ Usar hooks de Supabase
+  const { posts, createPost, updatePost, deletePost } = useSupabasePosts();
  
   // ✅ ESTADO MODIFICADO: controla si el login está desbloqueado
   const [isLoginUnlocked, setIsLoginUnlocked] = useState(false);
   
+  // ✅ ESTADO NUEVO: Controla visibilidad de los modales de Autores y Acerca de
+  const [authorsOpen, setAuthorsOpen] = useState(false);
+  const [aboutOpen, setAboutOpen] = useState(false);
+  
   const [selectedPost, setSelectedPost] = useState(null);
   const [editingPost, setEditingPost] = useState(null);
   const [notice, setNotice] = useState("");
+  const [showSplash, setShowSplash] = useState(true);
 
   const handleCreate = async (payload) => {
-    // ✅ Usar createPost de Supabase
     const { error } = await createPost(payload);
     if (error) {
       setNotice(`❌ Error: ${error}`);
@@ -1837,7 +2259,6 @@ const { posts, createPost, updatePost, deletePost } = useSupabasePosts();
   };
 
   const handleSaveEdit = async (updatedPost) => {
-    // ✅ Usar updatePost de Supabase
     const { error } = await updatePost(updatedPost.id, updatedPost);
     if (error) {
       setNotice(`❌ Error: ${error}`);
@@ -1849,7 +2270,6 @@ const { posts, createPost, updatePost, deletePost } = useSupabasePosts();
   
   const handleDelete = async (post) => {
     if (window.confirm(`¿Estás seguro de eliminar "${post.spanish_title}"?`)) {
-      // ✅ Usar deletePost de Supabase
       const { error } = await deletePost(post.id);
       if (error) {
         setNotice(`❌ Error: ${error}`);
@@ -1868,43 +2288,130 @@ const { posts, createPost, updatePost, deletePost } = useSupabasePosts();
       } catch {}
     }
   },[]);
+  
+  if (showSplash) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-[#0a0e1a] via-[#0f1419] to-[#1a0f1f] text-[#e6edf6] relative overflow-hidden flex items-center justify-center">
+        {/* Efectos de fondo animados */}
+        <div className="fixed inset-0 opacity-30 pointer-events-none">
+          <div className="absolute top-20 left-10 w-72 h-72 bg-blue-600/30 rounded-full blur-3xl animate-pulse"></div>
+          <div className="absolute bottom-20 right-10 w-96 h-96 bg-purple-600/30 rounded-full blur-3xl animate-pulse" style={{animationDelay: '1s'}}></div>
+          <div className="absolute top-1/2 left-1/2 w-64 h-64 bg-cyan-600/20 rounded-full blur-3xl animate-pulse" style={{animationDelay: '2s'}}></div>
+        </div>
 
-  return (
-    <Page>
-      <header className="relative text-center mb-4 xs:mb-6 sm:mb-8 border-b border-[#1c2735]/50 pb-3 xs:pb-4 sm:pb-6 pt-2 xs:pt-3 sm:pt-4">
-        <div className="absolute inset-0 bg-gradient-to-r from-blue-600/10 via-purple-600/10 to-cyan-600/10 blur-3xl"></div>
-        <div className="relative px-2 xs:px-3 sm:px-4">
-          <h1 className="text-base xs:text-xl sm:text-2xl md:text-3xl lg:text-4xl xl:text-5xl font-extrabold tracking-wide mb-1.5 xs:mb-2">
+        {/* Contenido central */}
+        <div className="relative z-10 text-center px-4 max-w-4xl">
+         {/* ... dentro de if (showSplash) */}
+          {/* Modelo 3D Interactivo */}
+        <div className="mb-8 h-64 sm:h-80 md:h-96 w-full ...">
+  <ClapperModelViewer />
+</div>
+          {/* Título principal */}
+          <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold tracking-wide mb-6 animate-fade-in">
             <span className="bg-gradient-to-r from-blue-400 via-purple-400 to-cyan-400 bg-clip-text text-transparent">
               25 GRANDES PELÍCULAS
             </span>
           </h1>
-          <p className="text-[10px] xs:text-xs sm:text-sm md:text-base lg:text-lg xl:text-xl text-[#a9b4c6] font-medium px-1 xs:px-2">
+
+          {/* Subtítulo */}
+          <p className="text-lg sm:text-xl md:text-2xl lg:text-3xl text-[#a9b4c6] font-medium mb-3 animate-fade-in" style={{animationDelay: '0.2s'}}>
             DE CIENCIA FICCIÓN Y TECNOLOGÍA
           </p>
-          <p className="text-[9px] xs:text-[10px] sm:text-xs md:text-sm text-[#8fa1bb] mt-0.5 xs:mt-1">
+          
+          <p className="text-sm sm:text-base md:text-lg text-[#8fa1bb] mb-12 animate-fade-in" style={{animationDelay: '0.4s'}}>
             DE LA HISTORIA DEL CINE
           </p>
-        </div>
-        <div className="absolute top-1.5 xs:top-2 sm:top-4 right-1.5 xs:right-2 sm:right-4 flex items-center gap-1.5 xs:gap-2 sm:gap-3 z-10">
-          
-          {/* ✅ BOTÓN DE ACCESO ELIMINADO */}
 
-          {currentUser && (
-            <>
-              <div className="hidden sm:flex items-center gap-1.5 xs:gap-2 px-2 xs:px-3 md:px-4 py-1 xs:py-1.5 md:py-2 bg-gradient-to-r from-[#0f1520] to-[#1a1f2e] rounded-lg xs:rounded-xl md:rounded-2xl border border-[#243247]">
-                <span className="text-[10px] xs:text-xs md:text-sm text-[#8fa1bb]">Sesión:</span>
-                <strong className="text-white text-[10px] xs:text-xs md:text-sm truncate max-w-[60px] xs:max-w-[80px] md:max-w-[100px]">{currentUser.name}</strong>
-              </div>
-              <Button variant="ghost" onClick={logout} icon="👋">
-                <span className="hidden xs:inline text-[10px] xs:text-xs sm:text-sm">Salir</span>
-              </Button>
-            </>
-          )}
-        </div>
-      </header>
+          {/* Botón de entrada */}
+          <button
+            onClick={() => setShowSplash(false)}
+            className="group relative px-8 sm:px-12 py-4 sm:py-5 rounded-2xl text-lg sm:text-xl font-bold transition-all duration-500 transform hover:scale-110 active:scale-95 animate-fade-in"
+            style={{animationDelay: '0.6s'}}
+          >
+            {/* Fondo del botón con gradiente animado */}
+            <div className="absolute inset-0 bg-gradient-to-r from-blue-600 via-purple-600 to-cyan-600 rounded-2xl opacity-100 group-hover:opacity-0 transition-opacity duration-500"></div>
+            <div className="absolute inset-0 bg-gradient-to-r from-cyan-600 via-blue-600 to-purple-600 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+            
+            {/* Brillo animado */}
+            <div className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500">
+              <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer"></div>
+            </div>
 
-      <div className="mt-3 xs:mt-4 sm:mt-6 grid gap-3 xs:gap-4 sm:gap-6 md:gap-8">
+            {/* Texto del botón */}
+            <span className="relative flex items-center gap-3 text-white">
+              EXPLORAR PELÍCULAS
+              <span className="text-2xl transform group-hover:translate-x-2 transition-transform duration-300">→</span>
+            </span>
+          </button>
+
+          {/* Texto informativo */}
+          <p className="mt-8 text-xs sm:text-sm text-[#6b7a90] animate-fade-in" style={{animationDelay: '0.8s'}}>
+            Una colección de las mejores películas de ciencia ficción de todos los tiempos.
+          </p>
+        </div>
+
+        {/* Partículas decorativas */}
+        <div className="absolute inset-0 pointer-events-none">
+          {[...Array(20)].map((_, i) => (
+            <div
+              key={i}
+              className="absolute w-1 h-1 bg-blue-400/30 rounded-full animate-float"
+              style={{
+                left: `${Math.random() * 100}%`,
+                top: `${Math.random() * 100}%`,
+                animationDelay: `${Math.random() * 5}s`,
+                animationDuration: `${5 + Math.random() * 10}s`
+              }}
+            />
+          ))}
+        </div>
+
+        {/* Estilos de animación */}
+        <style>{`
+          @keyframes fade-in {
+            from {
+              opacity: 0;
+              transform: translateY(20px);
+            }
+            to {
+              opacity: 1;
+              transform: translateY(0);
+            }
+          }
+          @keyframes bounce-slow {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-20px); }
+          }
+          @keyframes shimmer {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+          }
+          @keyframes float {
+            0%, 100% { transform: translateY(0) translateX(0); opacity: 0; }
+            10% { opacity: 0.3; }
+            50% { transform: translateY(-100px) translateX(50px); opacity: 0.6; }
+            90% { opacity: 0.3; }
+          }
+          .animate-fade-in { animation: fade-in 1s ease-out forwards; opacity: 0; }
+          .animate-bounce-slow { animation: bounce-slow 3s ease-in-out infinite; }
+          .animate-shimmer { animation: shimmer 2s infinite; }
+          .animate-float { animation: float linear infinite; }
+        `}</style>
+      </div>
+    );
+  }
+
+  return (
+    <Page>
+      {/* ✅ NUEVO: Header Integrado */}
+      <Header 
+        onOpenAuthors={() => setAuthorsOpen(true)}
+        onOpenAbout={() => setAboutOpen(true)}
+        currentUser={currentUser}
+        logout={logout}
+      />
+
+      <div className="max-w-7xl mx-auto px-2 xs:px-3 sm:px-4 md:px-6 py-3 xs:py-4 md:py-6 grid gap-3 xs:gap-4 sm:gap-6 md:gap-8 w-full">
         <DailyCarousel 
           posts={posts} 
           onPostClick={setSelectedPost} 
@@ -1912,7 +2419,6 @@ const { posts, createPost, updatePost, deletePost } = useSupabasePosts();
           onEdit={handleEdit}
         />
         
-        {/* ✅ Pasamos la función para desbloquear a PostList */}
         <PostList 
           posts={posts} 
           users={users} 
@@ -1947,8 +2453,13 @@ const { posts, createPost, updatePost, deletePost } = useSupabasePosts();
         )}
       </div>
 
-      
+      {/* ✅ NUEVO: Footer Integrado */}
+      <Footer 
+        onOpenAuthors={() => setAuthorsOpen(true)}
+        onOpenAbout={() => setAboutOpen(true)}
+      />
 
+      {/* Modales de Detalles de Película */}
       {selectedPost && (
         <Modal onClose={() => setSelectedPost(null)}>
           <PostDetailViewPlus 
@@ -1966,6 +2477,19 @@ const { posts, createPost, updatePost, deletePost } = useSupabasePosts();
           onClose={() => setEditingPost(null)}
           onSave={handleSaveEdit}
         />
+      )}
+      
+      {/* ✅ NUEVO: Modales de Autores y Acerca de */}
+      {authorsOpen && (
+        <AuthorsModal 
+          onClose={() => setAuthorsOpen(false)} 
+          users={users} 
+          posts={posts} 
+        />
+      )}
+      
+      {aboutOpen && (
+        <AboutModal onClose={() => setAboutOpen(false)} />
       )}
     </Page>
   );
