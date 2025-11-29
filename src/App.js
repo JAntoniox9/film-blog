@@ -5,10 +5,11 @@
 
 import { v4 as uuidv4 } from 'uuid';
 import React, { useMemo, useState, useEffect, createContext, useContext, useRef } from "react";
-import { useUsers as useSupabaseUsers, useAuth as useSupabaseAuth, usePosts as useSupabasePosts } from './hooks/useSupabase';
+import { useUsers as useSupabaseUsers, useAuth as useSupabaseAuth, usePosts as useSupabasePosts, useFavorites } from './hooks/useSupabase';
 import { FileUpload } from './components/FileUpload';
 import ClapperModelViewer from './ClapperModel';
 import { FaXTwitter, FaFacebook, FaInstagram } from "react-icons/fa6";
+import { canCreatePost, canEditPost, canDeletePost, canAccessPostForm } from './utils/permissions';
 
 
 /*************************** Utilidades ***************************/
@@ -34,8 +35,8 @@ function useAuth(){ return useContext(AuthCtx); }
 
 function AuthProvider({children}){
   // ✅ Usar hooks de Supabase
-  const { users, loading: usersLoading } = useSupabaseUsers();
-  const { login: supabaseLogin } = useSupabaseAuth();
+  const { users, loading: usersLoading, updateUserRole } = useSupabaseUsers();
+  const { login: supabaseLogin, loginPremium: supabaseLoginPremium, signUpPremium: supabaseSignUpPremium } = useSupabaseAuth();
   
   // Mantener sesión en localStorage
   const [currentUser, setCurrentUser] = useState(() => {
@@ -48,11 +49,26 @@ function AuthProvider({children}){
     else localStorage.removeItem(LS_KEYS.SESSION);
   }, [currentUser]);
 
-  // Login con Supabase
+  // Login con Supabase (solo para admin y editores)
   const login = async (idOrEmail, password) => {
     const { user, error } = await supabaseLogin(idOrEmail, password);
     if (error) throw new Error(error);
     setCurrentUser(user);
+  };
+
+  // ✅ Login para lector premium
+  const loginPremium = async (email, password) => {
+    const { user, error } = await supabaseLoginPremium(email, password);
+    if (error) throw new Error(error);
+    setCurrentUser(user);
+  };
+
+  // ✅ Registro para lector premium
+  const signUpPremium = async (email, password, name) => {
+    const { user, error } = await supabaseSignUpPremium(email, password, name);
+    if (error) throw new Error(error);
+    // No hacer login automático, el usuario debe confirmar su correo primero
+    return { user };
   };
   
   const logout = () => setCurrentUser(null);
@@ -70,7 +86,7 @@ function AuthProvider({children}){
   }
 
   return (
-    <AuthCtx.Provider value={{users, currentUser, login, logout}}>
+    <AuthCtx.Provider value={{users, currentUser, login, logout, loginPremium, signUpPremium, updateUserRole}}>
       {children}
     </AuthCtx.Provider>
   );
@@ -236,10 +252,13 @@ function Modal({ children, onClose, maxWidth = "max-w-6xl" }) {
       </button>
 
       <div 
-        className={`relative ${maxWidth} w-full my-4 sm:my-0 max-h-[calc(100vh-2rem)] sm:max-h-[92vh] bg-[#0b0f14] rounded-xl sm:rounded-2xl shadow-2xl border border-white/10 transform transition-all duration-500 overflow-hidden ${isVisible ? 'scale-100 opacity-100' : 'scale-95 opacity-0'}`}
+        className={`relative ${maxWidth} w-full my-4 sm:my-0 max-h-[calc(100vh-2rem)] sm:max-h-[92vh] bg-gradient-to-br from-[#0b0f14] via-[#111821] to-[#0b0f14] rounded-xl sm:rounded-2xl shadow-2xl border border-white/10 transform transition-all duration-500 overflow-hidden ${isVisible ? 'scale-100 opacity-100' : 'scale-95 opacity-0'}`}
         onClick={e => e.stopPropagation()}
+        style={{
+          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.1)'
+        }}
       >
-        <div className="overflow-y-auto max-h-[calc(100vh-2rem)] sm:max-h-[92vh] custom-scrollbar">
+        <div className="overflow-y-auto max-h-[calc(100vh-2rem)] sm:max-h-[92vh] custom-scrollbar" style={{scrollBehavior: 'smooth'}}>
           {children}
         </div>
       </div>
@@ -250,7 +269,7 @@ function Modal({ children, onClose, maxWidth = "max-w-6xl" }) {
 /*************************** NUEVOS COMPONENTES SOLICITADOS ***************************/
 
 /*************************** Header Component ***************************/
-function Header({ onOpenAuthors, onOpenAbout, currentUser, logout }) {
+function Header({ onOpenAuthors, onOpenAbout, currentUser, logout, onToggleFavorites, showFavorites, isPremium, onOpenAdmin }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   return (
@@ -284,9 +303,27 @@ function Header({ onOpenAuthors, onOpenAbout, currentUser, logout }) {
               <span>ℹ️</span>
               <span>Acerca de</span>
             </button>
+            {isPremium && onToggleFavorites && (
+              <button
+                onClick={onToggleFavorites}
+                className={`px-3 lg:px-4 py-2 text-sm lg:text-base transition-colors flex items-center gap-2 ${
+                  showFavorites 
+                    ? 'text-yellow-400 hover:text-yellow-300' 
+                    : 'text-[#e6edf6] hover:text-yellow-400'
+                }`}
+              >
+                <span>{showFavorites ? '❤️' : '🤍'}</span>
+                <span>Favoritos</span>
+              </button>
+            )}
             {currentUser && (
               <>
                 <div className="h-6 w-px bg-[#243247]"></div>
+                {currentUser.role === 'admin' && onOpenAdmin && (
+                  <NavButton variant="solid" onClick={onOpenAdmin} icon="⚙️" className="text-sm bg-gradient-to-r from-red-600 to-orange-600">
+                    Admin
+                  </NavButton>
+                )}
                 <div className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-[#0f1520] to-[#1a1f2e] rounded-xl border border-[#243247]">
                   <span className="text-xs text-[#8fa1bb]">Sesión:</span>
                   <strong className="text-sm text-white truncate max-w-[120px]">{currentUser.name}</strong>
@@ -329,6 +366,28 @@ function Header({ onOpenAuthors, onOpenAbout, currentUser, logout }) {
               <span>ℹ️</span>
               <span>Acerca de</span>
             </button>
+            {isPremium && onToggleFavorites && (
+              <button
+                onClick={() => { onToggleFavorites(); setIsMenuOpen(false); }}
+                className={`w-full px-3 py-2 text-sm text-left rounded-lg transition-colors flex items-center gap-2 ${
+                  showFavorites 
+                    ? 'text-yellow-400 hover:bg-[#1c2735]/30' 
+                    : 'text-[#e6edf6] hover:bg-[#1c2735]/30'
+                }`}
+              >
+                <span>{showFavorites ? '❤️' : '🤍'}</span>
+                <span>Favoritos</span>
+              </button>
+            )}
+            {currentUser && currentUser.role === 'admin' && onOpenAdmin && (
+              <button
+                onClick={() => { onOpenAdmin(); setIsMenuOpen(false); }}
+                className="w-full px-3 py-2 text-sm text-left text-red-400 hover:bg-[#1c2735]/30 rounded-lg transition-colors flex items-center gap-2"
+              >
+                <span>⚙️</span>
+                <span>Panel Admin</span>
+              </button>
+            )}
             {currentUser && (
               <div className="px-3 py-2 bg-[#0f1520]/50 rounded-lg text-xs">
                 <span className="text-[#8fa1bb]">Sesión: </span>
@@ -448,8 +507,13 @@ function Footer({ onOpenAuthors, onOpenAbout }) {
 
 /*************************** Modal Autores ***************************/
 function AuthorsModal({ onClose, users, posts }) {
+  // ✅ Filtrar usuarios: excluir admin y lectores premium (colaborador_premium)
+  const filteredUsers = users.filter(user => 
+    user.role !== 'admin' && user.role !== 'colaborador_premium'
+  );
+  
   // Calculamos las estadísticas reales basadas en los datos de Supabase
-  const authorStats = users
+  const authorStats = filteredUsers
     .map((user) => {
       const userPosts = posts.filter((post) => post.author_id === user.id);
       return { ...user, postCount: userPosts.length, posts: userPosts };
@@ -653,14 +717,22 @@ function AboutModal({ onClose }) {
 }
 
 /*************************** Tarjeta con botón de editar ***************************/
-function PostSummaryCard({post, onClick, onEdit, showActions, currentUserId}){
+function PostSummaryCard({post, onClick, onEdit, showActions, currentUser, isPremium, isFavorite, onToggleFavorite}){
   const [isHovered, setIsHovered] = useState(false);
   const mainImage = (post.images || []).find(img => img && String(img).trim() !== "");
-  const canEdit = showActions && currentUserId && (post.author_id === currentUserId || post._seed);
+  // Usar funciones de permisos para verificar si puede editar
+  const canEdit = showActions && currentUser && canEditPost(currentUser.role, currentUser.id, post);
   
   const handleEdit = (e) => {
     e.stopPropagation();
     onEdit && onEdit(post);
+  };
+
+  const handleFavorite = (e) => {
+    e.stopPropagation();
+    if (onToggleFavorite) {
+      onToggleFavorite(post.id);
+    }
   };
   
   return (
@@ -694,15 +766,30 @@ function PostSummaryCard({post, onClick, onEdit, showActions, currentUserId}){
           
         </div>
 
-        {canEdit && (
-          <button
-            onClick={handleEdit}
-            className="absolute top-2 sm:top-3 left-2 sm:left-3 z-10 w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center rounded-full bg-gradient-to-br from-blue-600/90 to-blue-700/90 hover:from-blue-500 hover:to-blue-600 text-white shadow-lg hover:shadow-blue-900/50 transition-all duration-300 transform hover:scale-110 active:scale-95 opacity-0 group-hover:opacity-100"
-            title="Editar película"
-          >
-            <span className="text-base sm:text-lg">✏️</span>
-          </button>
-        )}
+        <div className="absolute top-2 sm:top-3 left-2 sm:left-3 z-10 flex flex-col gap-1 sm:gap-2">
+          {canEdit && (
+            <button
+              onClick={handleEdit}
+              className="w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center rounded-full bg-gradient-to-br from-blue-600/90 to-blue-700/90 hover:from-blue-500 hover:to-blue-600 text-white shadow-lg hover:shadow-blue-900/50 transition-all duration-300 transform hover:scale-110 active:scale-95 opacity-0 group-hover:opacity-100"
+              title="Editar película"
+            >
+              <span className="text-base sm:text-lg">✏️</span>
+            </button>
+          )}
+          {isPremium && (
+            <button
+              onClick={handleFavorite}
+              className={`w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center rounded-full shadow-lg transition-all duration-300 transform hover:scale-110 active:scale-95 ${
+                isFavorite 
+                  ? 'bg-gradient-to-br from-yellow-500/90 to-orange-500/90 hover:from-yellow-400 hover:to-orange-400 text-white opacity-100' 
+                  : 'bg-black/50 hover:bg-black/70 text-white/70 hover:text-white opacity-0 group-hover:opacity-100'
+              }`}
+              title={isFavorite ? "Quitar de favoritos" : "Agregar a favoritos"}
+            >
+              <span className="text-base sm:text-lg">{isFavorite ? '❤️' : '🤍'}</span>
+            </button>
+          )}
+        </div>
         
         <div className="absolute bottom-0 left-0 right-0 p-3 sm:p-4 md:p-5 z-10">
           <h3 className="text-base sm:text-lg md:text-xl font-bold text-white transition-all duration-300 group-hover:text-blue-300 mb-1 line-clamp-2">
@@ -1378,7 +1465,7 @@ function Tabs({ tabs, current, onChange }) {
 
 
 /*************************** Vista Detallada con botones ***************************/
-function PostDetailViewPlus({ post = {}, onEdit, onDelete, currentUserId }) {
+function PostDetailViewPlus({ post = {}, onEdit, onDelete, currentUser, isPremium, isFavorite, onToggleFavorite }) {
     const safePost = typeof post === 'object' && post !== null ? post : {};
     const [tab, setTab] = useState('resumen');
     const [isMuted, setIsMuted] = useState(true);
@@ -1394,7 +1481,10 @@ function PostDetailViewPlus({ post = {}, onEdit, onDelete, currentUserId }) {
     const castChips = useMemo(() => String(safePost.movie_cast || '').split(',').map(s => s.trim()).filter(Boolean), [safePost.movie_cast]);
     const features = Array.isArray(safePost.features) ? safePost.features : [];
     const hasMinimum = Boolean(safePost.spanish_title) || Boolean(safePost.original_title);
-    const canEdit = currentUserId && (safePost.author_id === currentUserId || Boolean(safePost._seed));
+    
+    // Usar funciones de permisos para verificar si puede editar o eliminar
+    const canEdit = currentUser && canEditPost(currentUser.role, currentUser.id, safePost);
+    const canDelete = currentUser && canDeletePost(currentUser.role, currentUser.id, safePost);
 
     const toggleMute = () => {
         if (playerRef.current && typeof playerRef.current.isMuted === 'function') {
@@ -1511,15 +1601,28 @@ function PostDetailViewPlus({ post = {}, onEdit, onDelete, currentUserId }) {
                 <span className="text-sm xs:text-base sm:text-lg">{isMuted ? '🔇' : '🔊'}</span>
               </button>
             )}
+            {isPremium && onToggleFavorite && (
+              <button 
+                onClick={() => onToggleFavorite(safePost.id)} 
+                className={`w-8 h-8 xs:w-9 xs:h-9 sm:w-10 sm:h-10 inline-flex items-center justify-center rounded-full shadow-lg transition-all ${
+                  isFavorite 
+                    ? 'bg-gradient-to-br from-yellow-500/90 to-orange-500/90 hover:from-yellow-400 hover:to-orange-400 text-white' 
+                    : 'bg-black/50 backdrop-blur-sm hover:bg-black/70 text-white'
+                }`}
+                title={isFavorite ? "Quitar de favoritos" : "Agregar a favoritos"}
+              >
+                <span className="text-sm xs:text-base sm:text-lg">{isFavorite ? '❤️' : '🤍'}</span>
+              </button>
+            )}
             {canEdit && (
-              <>
-                <button onClick={() => onEdit && onEdit(safePost)} className="w-8 h-8 xs:w-9 xs:h-9 sm:w-10 sm:h-10 inline-flex items-center justify-center rounded-full bg-blue-600/80 hover:bg-blue-500 text-white shadow-lg transition-all" title="Editar película">
-                  <span className="text-sm xs:text-base sm:text-lg">✏️</span>
-                </button>
-                <button onClick={() => onDelete && onDelete(safePost)} className="w-8 h-8 xs:w-9 xs:h-9 sm:w-10 sm:h-10 inline-flex items-center justify-center rounded-full bg-red-600/80 hover:bg-red-500 text-white shadow-lg transition-all" title="Eliminar película">
-                  <span className="text-sm xs:text-base sm:text-lg">🗑️</span>
-                </button>
-              </>
+              <button onClick={() => onEdit && onEdit(safePost)} className="w-8 h-8 xs:w-9 xs:h-9 sm:w-10 sm:h-10 inline-flex items-center justify-center rounded-full bg-blue-600/80 hover:bg-blue-500 text-white shadow-lg transition-all" title="Editar película">
+                <span className="text-sm xs:text-base sm:text-lg">✏️</span>
+              </button>
+            )}
+            {canDelete && (
+              <button onClick={() => onDelete && onDelete(safePost)} className="w-8 h-8 xs:w-9 xs:h-9 sm:w-10 sm:h-10 inline-flex items-center justify-center rounded-full bg-red-600/80 hover:bg-red-500 text-white shadow-lg transition-all" title="Eliminar película">
+                <span className="text-sm xs:text-base sm:text-lg">🗑️</span>
+              </button>
             )}
         </div>
       </header>
@@ -1662,6 +1765,441 @@ function LoginPanel(){
         <span className="text-green-400">✓</span>
         Integrantes cargados: <span className="font-bold text-white">{users.length}</span>
       </div>
+      <div className="text-[10px] sm:text-xs text-[#8fa1bb] mt-2 flex items-center gap-2">
+        <span className="text-yellow-400">ℹ️</span>
+        <span>Este acceso es solo para administradores y editores</span>
+      </div>
+    </Card>
+  );
+}
+
+/*************************** Modal de Lector Premium ***************************/
+function PremiumCollaboratorModal({ onClose, onLogin, onSignUp }){
+  const [mode, setMode] = useState('info'); // 'info', 'login', 'signup', 'confirmation'
+  const [loginForm, setLoginForm] = useState({ email: "", password: "" });
+  const [signupForm, setSignupForm] = useState({ name: "", email: "", password: "", confirmPassword: "" });
+  const [err, setErr] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [registeredEmail, setRegisteredEmail] = useState("");
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setErr("");
+    setLoading(true);
+    try {
+      await onLogin(loginForm.email.trim(), loginForm.password.trim());
+      onClose();
+    } catch (ex) {
+      setErr(ex.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSignUp = async (e) => {
+    e.preventDefault();
+    setErr("");
+    
+    if (signupForm.password !== signupForm.confirmPassword) {
+      setErr("Las contraseñas no coinciden");
+      return;
+    }
+    
+    if (signupForm.password.length < 6) {
+      setErr("La contraseña debe tener al menos 6 caracteres");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await onSignUp(signupForm.email.trim(), signupForm.password.trim(), signupForm.name.trim());
+      setRegisteredEmail(signupForm.email.trim());
+      setMode('confirmation');
+    } catch (ex) {
+      setErr(ex.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const benefits = [
+    { icon: "⭐", text: "Acceso a contenido exclusivo" },
+    { icon: "❤️", text: "Marcar películas como favoritas" },
+    { icon: "🔔", text: "Recibir notificaciones de nuevos posts" },
+    { icon: "📱", text: "Compartir posts en redes sociales" },
+    { icon: "🎬", text: "Acceso prioritario a nuevas recomendaciones" }
+  ];
+
+  return (
+    <div className="animate-fadeIn max-w-2xl mx-auto p-4 sm:p-6 md:p-8">
+      {mode === 'info' && (
+        <>
+          <div className="flex items-center gap-2 sm:gap-3 mb-6 sm:mb-8">
+            <div className="text-4xl sm:text-5xl md:text-6xl drop-shadow-lg filter" style={{filter: 'drop-shadow(0 0 10px rgba(255, 215, 0, 0.5))'}}>⭐</div>
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold leading-tight">
+              ¿Quieres ser <span className="text-orange-400 drop-shadow-lg" style={{textShadow: '0 0 10px rgba(251, 146, 60, 0.5)'}}>Lector</span> <span className="bg-gradient-to-r from-pink-400 via-purple-400 to-pink-500 bg-clip-text text-transparent drop-shadow-lg" style={{textShadow: '0 0 10px rgba(236, 72, 153, 0.3)'}}>Premium?</span>
+            </h2>
+          </div>
+          
+          <div className="mb-6 sm:mb-8 p-4 sm:p-6 bg-gradient-to-br from-[#0f1520]/80 via-[#1a1f2e]/60 to-[#0f1520]/80 rounded-2xl border border-[#243247]/70 shadow-2xl shadow-black/50 backdrop-blur-sm">
+            <h3 className="text-base sm:text-lg font-semibold text-[#e6edf6] mb-4 sm:mb-5 flex items-center gap-2">
+              <span className="text-orange-400">✨</span>
+              <span>Beneficios de ser Lector Premium</span>
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+              {benefits.map((benefit, idx) => (
+                <div key={idx} className="flex items-start gap-2 sm:gap-3 p-3 sm:p-4 bg-gradient-to-br from-[#0f1520]/90 to-[#1a1f2e]/90 rounded-xl border border-[#243247]/70 shadow-lg hover:shadow-xl hover:shadow-blue-900/20 hover:border-[#2f4257] transition-all duration-300 hover:scale-[1.02]">
+                  <span className="text-xl sm:text-2xl flex-shrink-0 drop-shadow-md">{benefit.icon}</span>
+                  <span className="text-xs sm:text-sm text-[#a9b4c6] leading-relaxed">{benefit.text}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mt-6 sm:mt-8">
+            <Button 
+              onClick={() => setMode('signup')} 
+              variant="primary" 
+              icon="📝"
+              className="flex-1 text-base sm:text-lg px-6 sm:px-8 py-3 sm:py-4 bg-gradient-to-r from-blue-600 via-blue-500 to-blue-600 hover:from-blue-500 hover:via-blue-400 hover:to-blue-500 shadow-xl shadow-blue-900/50 hover:shadow-2xl hover:shadow-blue-800/60"
+            >
+              Registrarse como Lector Premium
+            </Button>
+            <Button 
+              onClick={() => setMode('login')} 
+              variant="ghost" 
+              icon="🔑"
+              className="flex-1 text-sm sm:text-base px-4 sm:px-6 py-2.5 sm:py-3 bg-[#1c2735] hover:bg-[#243247] border border-[#2a3a50] hover:border-[#3a4a60] text-[#a9b4c6] hover:text-[#e6edf6] shadow-lg hover:shadow-xl transition-all"
+            >
+              Iniciar Sesión como Lector Premium
+            </Button>
+          </div>
+        </>
+      )}
+
+      {mode === 'login' && (
+        <>
+          <div className="flex items-center gap-2 sm:gap-3 mb-4 sm:mb-6">
+            <button 
+              onClick={() => { setMode('info'); setErr(''); }} 
+              className="text-2xl hover:opacity-70 transition-opacity"
+            >
+              ←
+            </button>
+            <div className="text-2xl sm:text-3xl">🔑</div>
+            <h2 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+              Iniciar Sesión como Lector Premium
+            </h2>
+          </div>
+          
+          <form onSubmit={handleLogin} className="space-y-4 sm:space-y-5">
+            <Input 
+              label="Correo electrónico" 
+              icon="📧"
+              type="email"
+              value={loginForm.email} 
+              onChange={e => setLoginForm({...loginForm, email: e.target.value})} 
+              required
+            />
+            <Input 
+              label="Contraseña" 
+              icon="🔒"
+              type="password" 
+              value={loginForm.password} 
+              onChange={e => setLoginForm({...loginForm, password: e.target.value})} 
+              required
+            />
+            {err && (
+              <div className="text-red-400 text-xs sm:text-sm bg-red-900/20 border border-red-700 rounded-xl p-3">
+                ⚠️ {err}
+              </div>
+            )}
+            <div className="flex gap-3 sm:gap-4">
+              <Button 
+                type="submit" 
+                icon="→" 
+                disabled={loading}
+                className="flex-1"
+              >
+                {loading ? 'Iniciando sesión...' : 'Iniciar Sesión'}
+              </Button>
+            </div>
+          </form>
+        </>
+      )}
+
+      {mode === 'signup' && (
+        <>
+          <div className="flex items-center gap-2 sm:gap-3 mb-4 sm:mb-6">
+            <button 
+              onClick={() => { setMode('info'); setErr(''); }} 
+              className="text-2xl hover:opacity-70 transition-opacity"
+            >
+              ←
+            </button>
+            <div className="text-2xl sm:text-3xl">📝</div>
+            <h2 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-yellow-400 to-orange-400 bg-clip-text text-transparent">
+              Registrarse como Lector Premium
+            </h2>
+          </div>
+          
+          <form onSubmit={handleSignUp} className="space-y-4 sm:space-y-5">
+            <Input 
+              label="Nombre completo" 
+              icon="👤"
+              value={signupForm.name} 
+              onChange={e => setSignupForm({...signupForm, name: e.target.value})} 
+              required
+            />
+            <Input 
+              label="Correo electrónico" 
+              icon="📧"
+              type="email"
+              value={signupForm.email} 
+              onChange={e => setSignupForm({...signupForm, email: e.target.value})} 
+              required
+            />
+            <Input 
+              label="Contraseña" 
+              icon="🔒"
+              type="password" 
+              value={signupForm.password} 
+              onChange={e => setSignupForm({...signupForm, password: e.target.value})} 
+              required
+              minLength={6}
+            />
+            <Input 
+              label="Confirmar contraseña" 
+              icon="🔒"
+              type="password" 
+              value={signupForm.confirmPassword} 
+              onChange={e => setSignupForm({...signupForm, confirmPassword: e.target.value})} 
+              required
+              minLength={6}
+            />
+            {err && (
+              <div className="text-red-400 text-xs sm:text-sm bg-red-900/20 border border-red-700 rounded-xl p-3">
+                ⚠️ {err}
+              </div>
+            )}
+            <div className="flex gap-3 sm:gap-4">
+              <Button 
+                type="submit" 
+                icon="✨" 
+                disabled={loading}
+                className="flex-1"
+              >
+                {loading ? 'Registrando...' : 'Registrarse'}
+              </Button>
+            </div>
+          </form>
+        </>
+      )}
+
+      {mode === 'confirmation' && (
+        <>
+          <div className="flex items-center gap-2 sm:gap-3 mb-4 sm:mb-6">
+            <div className="text-2xl sm:text-3xl">📧</div>
+            <h2 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-green-400 to-blue-400 bg-clip-text text-transparent">
+              Confirma tu cuenta
+            </h2>
+          </div>
+          
+          <div className="space-y-4 sm:space-y-5">
+            <div className="p-4 sm:p-6 bg-gradient-to-br from-green-900/20 via-blue-900/20 to-green-900/20 rounded-2xl border border-green-700/50 shadow-xl">
+              <div className="text-center space-y-3 sm:space-y-4">
+                <div className="text-5xl sm:text-6xl mb-4">✉️</div>
+                <p className="text-base sm:text-lg text-[#e6edf6] font-semibold">
+                  Por favor confirma tu cuenta para acceder
+                </p>
+                <p className="text-sm sm:text-base text-[#a9b4c6]">
+                  Se envió un enlace de confirmación a tu correo electrónico:
+                </p>
+                <p className="text-sm sm:text-base text-blue-400 font-medium break-all">
+                  {registeredEmail}
+                </p>
+                <p className="text-xs sm:text-sm text-[#8fa1bb] mt-4">
+                  Revisa tu bandeja de entrada y haz clic en el enlace para activar tu cuenta.
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex gap-3 sm:gap-4">
+              <Button 
+                onClick={onClose} 
+                variant="primary" 
+                icon="✓"
+                className="flex-1"
+              >
+                Entendido
+              </Button>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/*************************** Panel de Administración ***************************/
+function AdminPanel({ users, onUpdateRole, onClose }) {
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [newRole, setNewRole] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+
+  const roles = [
+    { value: 'admin', label: 'Administrador', color: 'text-red-400' },
+    { value: 'editor', label: 'Editor', color: 'text-blue-400' },
+    { value: 'editor_senior', label: 'Editor Senior', color: 'text-purple-400' },
+    { value: 'editor_junior', label: 'Editor Junior', color: 'text-cyan-400' },
+    { value: 'colaborador_premium', label: 'Lector Premium', color: 'text-yellow-400' },
+    { value: 'colaborador_basico', label: 'Colaborador Básico', color: 'text-gray-400' },
+  ];
+
+  const handleRoleChange = async (userId, currentRole) => {
+    if (!newRole || newRole === currentRole) {
+      setError('Selecciona un rol diferente');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+    setSuccess('');
+
+    const { error: updateError } = await onUpdateRole(userId, newRole);
+    
+    if (updateError) {
+      setError(`Error: ${updateError}`);
+    } else {
+      setSuccess(`Rol actualizado correctamente a ${roles.find(r => r.value === newRole)?.label}`);
+      setSelectedUser(null);
+      setNewRole('');
+      setTimeout(() => setSuccess(''), 3000);
+    }
+    
+    setLoading(false);
+  };
+
+  const getRoleLabel = (role) => {
+    return roles.find(r => r.value === role)?.label || role;
+  };
+
+  const getRoleColor = (role) => {
+    return roles.find(r => r.value === role)?.color || 'text-gray-400';
+  };
+
+  return (
+    <Card className="animate-fadeIn max-w-6xl mx-auto">
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <div className="text-3xl">⚙️</div>
+          <div>
+            <h2 className="text-2xl font-bold bg-gradient-to-r from-red-400 to-orange-400 bg-clip-text text-transparent">
+              Panel de Administración
+            </h2>
+            <p className="text-sm text-[#8fa1bb] mt-1">Gestiona usuarios y roles</p>
+          </div>
+        </div>
+        <button
+          onClick={onClose}
+          className="text-2xl hover:opacity-70 transition-opacity"
+        >
+          ✕
+        </button>
+      </div>
+
+      {success && (
+        <div className="mb-4 p-3 bg-green-900/20 border border-green-700 rounded-xl text-green-400 text-sm">
+          ✅ {success}
+        </div>
+      )}
+
+      {error && (
+        <div className="mb-4 p-3 bg-red-900/20 border border-red-700 rounded-xl text-red-400 text-sm">
+          ⚠️ {error}
+        </div>
+      )}
+
+      <div className="space-y-4 max-h-[70vh] overflow-y-auto custom-scrollbar">
+        {users.map((user) => (
+          <div
+            key={user.id}
+            className="p-4 bg-gradient-to-br from-[#0f1520]/50 to-[#1a1f2e]/50 rounded-xl border border-[#243247]/50 hover:border-[#2f4257] transition-all"
+          >
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-2">
+                  <h3 className="text-lg font-semibold text-white">{user.name || 'Sin nombre'}</h3>
+                  <span className={`text-xs px-2 py-1 rounded-full ${getRoleColor(user.role)} bg-[#0f1520]/50 border border-current/30`}>
+                    {getRoleLabel(user.role)}
+                  </span>
+                </div>
+                <p className="text-sm text-[#8fa1bb]">{user.email}</p>
+                {user.id && (
+                  <p className="text-xs text-[#6b7a90] mt-1 font-mono truncate">ID: {user.id}</p>
+                )}
+              </div>
+
+              {selectedUser?.id === user.id ? (
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <select
+                    value={newRole}
+                    onChange={(e) => setNewRole(e.target.value)}
+                    className="px-3 py-2 bg-[#0f1520] border border-[#243247] rounded-lg text-sm text-white focus:border-blue-500 focus:outline-none"
+                  >
+                    <option value="">Seleccionar nuevo rol</option>
+                    {roles.map((role) => (
+                      <option key={role.value} value={role.value}>
+                        {role.label}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={() => handleRoleChange(user.id, user.role)}
+                      disabled={loading || !newRole || newRole === user.role}
+                      className="text-xs px-3 py-2"
+                    >
+                      {loading ? 'Guardando...' : 'Guardar'}
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        setSelectedUser(null);
+                        setNewRole('');
+                        setError('');
+                      }}
+                      variant="ghost"
+                      className="text-xs px-3 py-2"
+                    >
+                      Cancelar
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <Button
+                  onClick={() => {
+                    setSelectedUser(user);
+                    setNewRole(user.role);
+                    setError('');
+                  }}
+                  variant="primary"
+                  className="text-xs px-4 py-2"
+                >
+                  Cambiar Rol
+                </Button>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {users.length === 0 && (
+        <div className="text-center py-8 text-[#8fa1bb]">
+          <p>No hay usuarios registrados</p>
+        </div>
+      )}
     </Card>
   );
 }
@@ -1889,7 +2427,7 @@ function PostForm({onSubmit, currentUser}){
 
 
 /*************************** Carrusel Mejorado ***************************/
-function DailyCarousel({posts, onPostClick, currentUserId, onEdit}){
+function DailyCarousel({posts, onPostClick, currentUser, onEdit}){
   const [idx, setIdx] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false);
@@ -1965,6 +2503,17 @@ function DailyCarousel({posts, onPostClick, currentUserId, onEdit}){
     if (!has) return;
     
     const handleKeyDown = (e) => {
+      // ✅ Ignorar eventos cuando el usuario está escribiendo en un campo de formulario
+      const target = e.target;
+      const isInputField = target.tagName === 'INPUT' || 
+                          target.tagName === 'TEXTAREA' || 
+                          target.isContentEditable ||
+                          target.closest('input, textarea, [contenteditable="true"]');
+      
+      if (isInputField) {
+        return; // No hacer nada si está escribiendo en un campo
+      }
+      
       if (e.key === 'ArrowLeft') {
         e.preventDefault();
         goToPrev();
@@ -2052,8 +2601,8 @@ function DailyCarousel({posts, onPostClick, currentUserId, onEdit}){
                   post={current} 
                   onClick={() => onPostClick(current)} 
                   onEdit={onEdit}
-                  currentUserId={currentUserId}
-                  showActions={!!currentUserId}
+                  currentUser={currentUser}
+                  showActions={!!currentUser}
                 />
               </div>
               
@@ -2114,12 +2663,66 @@ function DailyCarousel({posts, onPostClick, currentUserId, onEdit}){
 }
 
 
+/*************************** Vista de Favoritos ***************************/
+function FavoritesView({favorites, posts, onPostClick, isFavorite, onToggleFavorite, isPremium}){
+  // Obtener los posts que están en favoritos
+  const favoritePosts = posts.filter(p => isFavorite(p.id));
+  
+  if (!isPremium) {
+    return (
+      <Card>
+        <div className="text-center py-8 sm:py-12">
+          <div className="text-4xl sm:text-5xl mb-4 opacity-50">⭐</div>
+          <p className="text-base sm:text-lg text-[#8fa1bb] mb-2">Esta función es solo para lectores premium</p>
+          <p className="text-xs sm:text-sm text-[#6b7a90]">Regístrate como lector premium para acceder a esta función</p>
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <div className="flex items-center gap-2 sm:gap-3 mb-4 sm:mb-6">
+        <div className="text-2xl sm:text-3xl">❤️</div>
+        <h3 className="text-lg sm:text-xl md:text-2xl font-bold">Mis Películas Favoritas</h3>
+        <Badge variant="primary" className="ml-auto">{favoritePosts.length}</Badge>
+      </div>
+      
+      {favoritePosts.length === 0 ? (
+        <div className="text-center py-8 sm:py-12">
+          <div className="text-4xl sm:text-5xl mb-4 opacity-50">🤍</div>
+          <p className="text-base sm:text-lg text-[#8fa1bb] mb-2">Aún no tienes películas favoritas</p>
+          <p className="text-xs sm:text-sm text-[#6b7a90]">Marca películas como favoritas para verlas aquí</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 xs:grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 xs:gap-3 sm:gap-4">
+          {favoritePosts.map(p => (
+            <PostSummaryCard 
+              key={p.id} 
+              post={p} 
+              onClick={() => onPostClick(p)} 
+              isPremium={isPremium}
+              isFavorite={isFavorite(p.id)}
+              onToggleFavorite={onToggleFavorite}
+            />
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
 /*************************** Lista ***************************/
 // ✅ 1. Recibe la nueva prop onUnlockLogin
-function PostList({posts, users, onPostClick, currentUserId, onEdit, onUnlockLogin}){
+function PostList({posts, users, onPostClick, currentUser, onEdit, onUnlockLogin, isPremium, isFavorite, onToggleFavorite}){
   const [author, setAuthor] = useState("all");
   const [order, setOrder] = useState("desc");
   const [searchTerm, setSearchTerm] = useState("");
+  // ✅ NUEVO: Filtros avanzados para colaboradores premium
+  const [category, setCategory] = useState("all");
+  const [year, setYear] = useState("all");
+  const [streaming, setStreaming] = useState("all");
+  const [showAdvanced, setShowAdvanced] = useState(false);
   
   // ✅ 2. Añade un efecto para vigilar el buscador
   useEffect(() => {
@@ -2129,8 +2732,17 @@ function PostList({posts, users, onPostClick, currentUserId, onEdit, onUnlockLog
     }
   }, [searchTerm, onUnlockLogin]);
   
+  // Obtener años únicos y ordenados
+  const availableYears = useMemo(() => {
+    const years = [...new Set(posts.map(p => p.year).filter(Boolean))].sort((a, b) => b - a);
+    return years;
+  }, [posts]);
+  
   const filtered = posts
   .filter(p => author === "all" ? true : p.author_id === author)
+  .filter(p => category === "all" ? true : p.category === category)
+  .filter(p => year === "all" ? true : String(p.year) === year)
+  .filter(p => streaming === "all" ? true : p.streaming === streaming)
   .filter(p => {
     // La lógica de filtro normal, el `useEffect` ya se encarga de 'admin 51'
     if (!searchTerm.trim()) return true;
@@ -2138,7 +2750,9 @@ function PostList({posts, users, onPostClick, currentUserId, onEdit, onUnlockLog
     return (
       p.spanish_title?.toLowerCase().includes(search) ||
       p.original_title?.toLowerCase().includes(search) ||
-      p.director?.toLowerCase().includes(search)
+      p.director?.toLowerCase().includes(search) ||
+      p.movie_cast?.toLowerCase().includes(search) ||
+      p.summary?.toLowerCase().includes(search)
     );
   })
   .sort((a,b)=> order === "asc" ? new Date(a.created_at)-new Date(b.created_at) : new Date(b.created_at)-new Date(a.created_at));
@@ -2192,6 +2806,71 @@ function PostList({posts, users, onPostClick, currentUserId, onEdit, onUnlockLog
             </select>
           </label>
         </div>
+
+        {/* ✅ NUEVO: Filtros avanzados para colaboradores premium */}
+        {isPremium && (
+          <div className="mt-2 xs:mt-3">
+            <button
+              onClick={() => setShowAdvanced(!showAdvanced)}
+              className="w-full flex items-center justify-between px-3 py-2 bg-gradient-to-r from-[#0f1520] to-[#1a1f2e] border border-[#243247] rounded-lg hover:border-blue-500/50 transition-all text-xs sm:text-sm"
+            >
+              <span className="flex items-center gap-2">
+                <span>🔍</span>
+                <span>Filtros Avanzados</span>
+              </span>
+              <span className={`transform transition-transform ${showAdvanced ? 'rotate-180' : ''}`}>▼</span>
+            </button>
+            
+            {showAdvanced && (
+              <div className="mt-2 xs:mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2 xs:gap-2.5 sm:gap-3 p-3 bg-gradient-to-br from-[#0f1520]/50 to-[#1a1f2e]/50 rounded-lg border border-[#243247]/50">
+                <label className="text-[10px] xs:text-xs sm:text-sm">
+                  <span className="block text-[#a9b4c6] mb-1 xs:mb-1.5 sm:mb-2 font-medium flex items-center gap-1 xs:gap-1.5 sm:gap-2">
+                    <span>📂</span>
+                    Categoría
+                  </span>
+                  <select 
+                    value={category} 
+                    onChange={e=>setCategory(e.target.value)} 
+                    className="w-full bg-gradient-to-br from-[#0f1520] to-[#1a1f2e] border border-[#243247] rounded-lg md:rounded-xl px-2 xs:px-2.5 sm:px-3 md:px-4 py-1.5 xs:py-2 md:py-3 hover:border-[#2f4257] focus:border-blue-500 focus:ring-2 focus:ring-blue-600/20 transition-all text-[10px] xs:text-xs sm:text-sm"
+                  >
+                    <option value="all">Todas</option>
+                    {CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                  </select>
+                </label>
+                
+                <label className="text-[10px] xs:text-xs sm:text-sm">
+                  <span className="block text-[#a9b4c6] mb-1 xs:mb-1.5 sm:mb-2 font-medium flex items-center gap-1 xs:gap-1.5 sm:gap-2">
+                    <span>📅</span>
+                    Año
+                  </span>
+                  <select 
+                    value={year} 
+                    onChange={e=>setYear(e.target.value)} 
+                    className="w-full bg-gradient-to-br from-[#0f1520] to-[#1a1f2e] border border-[#243247] rounded-lg md:rounded-xl px-2 xs:px-2.5 sm:px-3 md:px-4 py-1.5 xs:py-2 md:py-3 hover:border-[#2f4257] focus:border-blue-500 focus:ring-2 focus:ring-blue-600/20 transition-all text-[10px] xs:text-xs sm:text-sm"
+                  >
+                    <option value="all">Todos</option>
+                    {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
+                  </select>
+                </label>
+                
+                <label className="text-[10px] xs:text-xs sm:text-sm">
+                  <span className="block text-[#a9b4c6] mb-1 xs:mb-1.5 sm:mb-2 font-medium flex items-center gap-1 xs:gap-1.5 sm:gap-2">
+                    <span>📺</span>
+                    Streaming
+                  </span>
+                  <select 
+                    value={streaming} 
+                    onChange={e=>setStreaming(e.target.value)} 
+                    className="w-full bg-gradient-to-br from-[#0f1520] to-[#1a1f2e] border border-[#243247] rounded-lg md:rounded-xl px-2 xs:px-2.5 sm:px-3 md:px-4 py-1.5 xs:py-2 md:py-3 hover:border-[#2f4257] focus:border-blue-500 focus:ring-2 focus:ring-blue-600/20 transition-all text-[10px] xs:text-xs sm:text-sm"
+                  >
+                    <option value="all">Todas</option>
+                    {STREAMING_PLATFORMS.map(plat => <option key={plat} value={plat}>{plat}</option>)}
+                  </select>
+                </label>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="mt-3 xs:mt-4 grid grid-cols-2 xs:grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 xs:gap-3 sm:gap-4">
@@ -2201,8 +2880,11 @@ function PostList({posts, users, onPostClick, currentUserId, onEdit, onUnlockLog
             post={p} 
             onClick={() => onPostClick(p)} 
             onEdit={onEdit}
-            currentUserId={currentUserId}
-            showActions={!!currentUserId}
+            currentUser={currentUser}
+            showActions={!!currentUser}
+            isPremium={isPremium}
+            isFavorite={isFavorite?.(p.id)}
+            onToggleFavorite={onToggleFavorite}
           />
         ))}
         {filtered.length===0 && (
@@ -2227,10 +2909,14 @@ export default function App(){
 }
 
 function MainApp(){
-  const {users, currentUser, logout} = useAuth();
+  const {users, currentUser, logout, loginPremium, signUpPremium, updateUserRole} = useAuth();
 
   // ✅ Usar hooks de Supabase
   const { posts, createPost, updatePost, deletePost } = useSupabasePosts();
+  
+  // ✅ NUEVO: Hook de favoritos para colaboradores premium
+  const isPremium = currentUser?.role === 'colaborador_premium';
+  const { favorites, toggleFavorite, isFavorite } = useFavorites(isPremium ? currentUser?.id : null);
  
   // ✅ ESTADO MODIFICADO: controla si el login está desbloqueado
   const [isLoginUnlocked, setIsLoginUnlocked] = useState(false);
@@ -2239,12 +2925,60 @@ function MainApp(){
   const [authorsOpen, setAuthorsOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
   
+  // ✅ ESTADO NUEVO: Controla visibilidad del modal de Lector Premium
+  const [premiumModalOpen, setPremiumModalOpen] = useState(false);
+  
+  // ✅ ESTADO NUEVO: Controla visibilidad del panel de administración
+  const [adminPanelOpen, setAdminPanelOpen] = useState(false);
+  
+  // ✅ NUEVO: Controla si se muestra la vista de favoritos
+  const [showFavorites, setShowFavorites] = useState(false);
+  
+  // ✅ NUEVO: Sistema de notificaciones para colaboradores premium
+  const [notifications, setNotifications] = useState([]);
+  const [lastPostCount, setLastPostCount] = useState(posts.length);
+  
   const [selectedPost, setSelectedPost] = useState(null);
   const [editingPost, setEditingPost] = useState(null);
   const [notice, setNotice] = useState("");
   const [showSplash, setShowSplash] = useState(true);
 
+  // ✅ NUEVO: Detectar nuevos posts y mostrar notificaciones
+  useEffect(() => {
+    if (isPremium && posts.length > lastPostCount) {
+      const newPosts = posts.slice(0, posts.length - lastPostCount);
+      newPosts.forEach(post => {
+        const notification = {
+          id: Date.now() + Math.random(),
+          type: 'new_post',
+          message: `🎬 Nueva película: ${post.spanish_title || post.original_title}`,
+          postId: post.id,
+          timestamp: new Date()
+        };
+        setNotifications(prev => [notification, ...prev]);
+      });
+      setLastPostCount(posts.length);
+    }
+  }, [posts.length, lastPostCount, isPremium, posts]);
+
+  // Auto-eliminar notificaciones después de 5 segundos
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setNotifications(prev => prev.filter(n => {
+        const age = Date.now() - n.timestamp.getTime();
+        return age < 5000; // Mantener por 5 segundos
+      }));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
   const handleCreate = async (payload) => {
+    // Verificar permisos antes de crear
+    if (!currentUser || !canCreatePost(currentUser.role)) {
+      setNotice(`❌ Error: No tienes permisos para crear posts. Solo administradores y editores pueden crear contenido.`);
+      return;
+    }
+    
     const { error } = await createPost(payload);
     if (error) {
       setNotice(`❌ Error: ${error}`);
@@ -2254,11 +2988,31 @@ function MainApp(){
   };
 
   const handleEdit = (post) => {
+    // Verificar permisos antes de editar
+    if (!currentUser || !canEditPost(currentUser.role, currentUser.id, post)) {
+      setNotice(`❌ Error: No tienes permisos para editar este post.`);
+      return;
+    }
+    
     setEditingPost(post);
     setSelectedPost(null);
   };
 
   const handleSaveEdit = async (updatedPost) => {
+    // Obtener el post original para verificar permisos
+    const originalPost = posts.find(p => p.id === updatedPost.id);
+    if (!originalPost) {
+      setNotice(`❌ Error: Post no encontrado.`);
+      return;
+    }
+    
+    // Verificar permisos antes de guardar
+    if (!currentUser || !canEditPost(currentUser.role, currentUser.id, originalPost)) {
+      setNotice(`❌ Error: No tienes permisos para editar este post.`);
+      setEditingPost(null);
+      return;
+    }
+    
     const { error } = await updatePost(updatedPost.id, updatedPost);
     if (error) {
       setNotice(`❌ Error: ${error}`);
@@ -2269,6 +3023,12 @@ function MainApp(){
   };
   
   const handleDelete = async (post) => {
+    // Verificar permisos antes de eliminar
+    if (!currentUser || !canDeletePost(currentUser.role, currentUser.id, post)) {
+      setNotice(`❌ Error: No tienes permisos para eliminar este post.`);
+      return;
+    }
+    
     if (window.confirm(`¿Estás seguro de eliminar "${post.spanish_title}"?`)) {
       const { error } = await deletePost(post.id);
       if (error) {
@@ -2409,30 +3169,87 @@ function MainApp(){
         onOpenAbout={() => setAboutOpen(true)}
         currentUser={currentUser}
         logout={logout}
+        onToggleFavorites={() => setShowFavorites(!showFavorites)}
+        showFavorites={showFavorites}
+        isPremium={isPremium}
+        onOpenAdmin={() => setAdminPanelOpen(true)}
       />
 
       <div className="max-w-7xl mx-auto px-2 xs:px-3 sm:px-4 md:px-6 py-3 xs:py-4 md:py-6 grid gap-3 xs:gap-4 sm:gap-6 md:gap-8 w-full">
         <DailyCarousel 
           posts={posts} 
           onPostClick={setSelectedPost} 
-          currentUserId={currentUser?.id}
+          currentUser={currentUser}
           onEdit={handleEdit}
         />
         
-        <PostList 
-          posts={posts} 
-          users={users} 
-          onPostClick={setSelectedPost}
-          currentUserId={currentUser?.id}
-          onEdit={handleEdit}
-          onUnlockLogin={() => setIsLoginUnlocked(true)}
-        />
+        {/* ✅ NUEVO: Vista de Favoritos para colaboradores premium */}
+        {isPremium && showFavorites && (
+          <FavoritesView 
+            favorites={favorites}
+            posts={posts}
+            onPostClick={setSelectedPost}
+            isFavorite={isFavorite}
+            onToggleFavorite={toggleFavorite}
+            isPremium={isPremium}
+          />
+        )}
+
+        {(!isPremium || !showFavorites) && (
+          <PostList 
+            posts={posts} 
+            users={users} 
+            onPostClick={setSelectedPost}
+            currentUser={currentUser}
+            onEdit={handleEdit}
+            onUnlockLogin={() => setIsLoginUnlocked(true)}
+            isPremium={isPremium}
+            isFavorite={isFavorite}
+            onToggleFavorite={toggleFavorite}
+          />
+        )}
 
         {/* ✅ Renderizado condicional del modal de login */}
         {!currentUser && isLoginUnlocked && (
           <Modal onClose={() => setIsLoginUnlocked(false)} maxWidth="max-w-4xl">
             <LoginPanel />
           </Modal>
+        )}
+
+        {/* ✅ NUEVO: Notificaciones para colaboradores premium */}
+        {isPremium && notifications.length > 0 && (
+          <div className="fixed top-20 right-4 z-50 space-y-2 max-w-sm">
+            {notifications.map(notif => (
+              <div
+                key={notif.id}
+                className="bg-gradient-to-r from-blue-600/90 to-purple-600/90 backdrop-blur-xl rounded-xl p-3 sm:p-4 border border-blue-400/50 shadow-xl animate-fadeIn"
+                onClick={() => {
+                  const post = posts.find(p => p.id === notif.postId);
+                  if (post) {
+                    setSelectedPost(post);
+                    setNotifications(prev => prev.filter(n => n.id !== notif.id));
+                  }
+                }}
+              >
+                <div className="flex items-start gap-2 sm:gap-3">
+                  <span className="text-lg sm:text-xl flex-shrink-0">🔔</span>
+                  <div className="flex-1">
+                    <p className="text-xs sm:text-sm font-semibold text-white">{notif.message}</p>
+                    <p className="text-[10px] sm:text-xs text-white/70 mt-1">Haz clic para ver</p>
+                  </div>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setNotifications(prev => prev.filter(n => n.id !== notif.id));
+                    }}
+                    className="text-white/70 hover:text-white transition-colors"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
         )}
 
         {currentUser && (
@@ -2448,8 +3265,25 @@ function MainApp(){
               </div>
             )}
             
-            <PostForm onSubmit={handleCreate} currentUser={currentUser} />
+            {/* Solo mostrar el formulario si el usuario tiene permisos */}
+            {canAccessPostForm(currentUser.role) && (
+              <PostForm onSubmit={handleCreate} currentUser={currentUser} />
+            )}
           </>
+        )}
+
+        {/* ✅ NUEVO: Botón de Lector Premium - Solo visible para usuarios no autenticados o colaboradores básicos */}
+        {(!currentUser || (currentUser.role !== 'colaborador_premium' && currentUser.role !== 'admin' && currentUser.role !== 'editor' && currentUser.role !== 'editor_senior' && currentUser.role !== 'editor_junior')) && (
+          <div className="flex justify-center py-6 sm:py-8 md:py-10">
+            <Button
+              onClick={() => setPremiumModalOpen(true)}
+              variant="primary"
+              icon="⭐"
+              className="text-base sm:text-lg px-6 sm:px-8 md:px-10 py-3 sm:py-4"
+            >
+              ¿Quieres ser lector premium?
+            </Button>
+          </div>
         )}
       </div>
 
@@ -2464,9 +3298,12 @@ function MainApp(){
         <Modal onClose={() => setSelectedPost(null)}>
           <PostDetailViewPlus 
             post={selectedPost} 
-            currentUserId={currentUser?.id}
+            currentUser={currentUser}
             onEdit={handleEdit}
             onDelete={handleDelete}
+            isPremium={isPremium}
+            isFavorite={isFavorite(selectedPost.id)}
+            onToggleFavorite={toggleFavorite}
           />
         </Modal>
       )}
@@ -2490,6 +3327,28 @@ function MainApp(){
       
       {aboutOpen && (
         <AboutModal onClose={() => setAboutOpen(false)} />
+      )}
+
+      {/* ✅ NUEVO: Modal de Lector Premium */}
+      {premiumModalOpen && (
+        <Modal onClose={() => setPremiumModalOpen(false)} maxWidth="max-w-4xl">
+          <PremiumCollaboratorModal 
+            onClose={() => setPremiumModalOpen(false)}
+            onLogin={loginPremium}
+            onSignUp={signUpPremium}
+          />
+        </Modal>
+      )}
+
+      {/* ✅ NUEVO: Panel de Administración */}
+      {adminPanelOpen && currentUser?.role === 'admin' && (
+        <Modal onClose={() => setAdminPanelOpen(false)} maxWidth="max-w-6xl">
+          <AdminPanel 
+            users={users}
+            onUpdateRole={updateUserRole}
+            onClose={() => setAdminPanelOpen(false)}
+          />
+        </Modal>
       )}
     </Page>
   );
