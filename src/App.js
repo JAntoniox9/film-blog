@@ -8,7 +8,7 @@ import React, { useMemo, useState, useEffect, createContext, useContext, useRef 
 import { useUsers as useSupabaseUsers, useAuth as useSupabaseAuth, usePosts as useSupabasePosts, useFavorites } from './hooks/useSupabase';
 import { FileUpload } from './components/FileUpload';
 import ClapperModelViewer from './ClapperModel';
-import { FaXTwitter, FaFacebook, FaInstagram } from "react-icons/fa6";
+import { FaThreads, FaFacebook, FaInstagram } from "react-icons/fa6";
 import { canCreatePost, canEditPost, canDeletePost, canAccessPostForm } from './utils/permissions';
 
 
@@ -472,7 +472,7 @@ function Footer({ onOpenAuthors, onOpenAbout }) {
             <div className="flex gap-2 sm:gap-3">
               {[
                 // TODOS LOS ENLACES ACTUALIZADOS
-                { k: "tw", hint: "Twitter", url: "https://x.com/TopMoviesCyT" },
+                { k: "th", hint: "Threads", url: "https://www.threads.com/@topmoviescyt" },
                 { k: "fb", hint: "Facebook", url: "https://www.facebook.com/Topmoviescyt" },
                 { k: "ig", hint: "Instagram", url: "https://www.instagram.com/topmoviescyt/" },
               
@@ -486,7 +486,7 @@ function Footer({ onOpenAuthors, onOpenAbout }) {
                   rel="noopener noreferrer" 
                   className="w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center rounded-full bg-[#1c2735] hover:bg-white/10 border border-[#243247] hover:border-blue-500/50 transition-all transform hover:scale-110"
                 >
-                  {s.k === "tw" ? <FaXTwitter className="text-sm sm:text-base" /> : s.k === "fb" ? <FaFacebook className="text-sm sm:text-base" /> : <FaInstagram className="text-sm sm:text-base" />}
+                  {s.k === "th" ? <FaThreads className="text-sm sm:text-base" /> : s.k === "fb" ? <FaFacebook className="text-sm sm:text-base" /> : <FaInstagram className="text-sm sm:text-base" />}
                 </a>
               ))}
             </div>
