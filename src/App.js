@@ -1029,9 +1029,9 @@ function ShareButtons({ post, settings }) {
     let url = '';
     
     switch(platform) {
-      case 'twitter':
-        url = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(shareUrl)}`;
-        break;
+      case 'threads':
+      url = `https://www.threads.net/intent/post?text=${encodeURIComponent(shareText + ' ' + shareUrl)}`;
+      break;
       case 'facebook':
         url = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`;
         break;
@@ -1051,11 +1051,11 @@ function ShareButtons({ post, settings }) {
   return (
     <div className="flex flex-wrap gap-2 sm:gap-3">
       <button
-        onClick={() => handleShare('twitter')}
+        onClick={() => handleShare('threads')}
         className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-gradient-to-r from-blue-500/20 to-blue-600/20 hover:from-blue-500/30 hover:to-blue-600/30 border border-blue-500/50 rounded-lg transition-all duration-300 transform hover:scale-105 active:scale-95"
-        title="Compartir en X (Twitter)"
+        title="Compartir en Threads"
       >
-        <FaXTwitter className="text-base sm:text-lg" />
+        <FaThreads className="text-base sm:text-lg" />
         <span className="text-xs sm:text-sm font-semibold">X</span>
       </button>
       
